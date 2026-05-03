@@ -399,7 +399,6 @@ def predict_review(review_text, overall_rating, work_life_balance):
 
 def login_view():
     st.title("Employee Retention Prediction System")
-    st.caption("Sentiment analysis with VADER and leave-risk prediction using the saved hybrid CNN model.")
 
     tab_login, tab_register = st.tabs(["Login", "Register"])
     with tab_login:
@@ -416,8 +415,6 @@ def login_view():
                 st.query_params.clear()
                 st.rerun()
             st.error("Invalid username or password.")
-
-        st.info("Demo accounts: HR `hr` / `admin123`, Employee `employee` / `employee123`")
 
     with tab_register:
         name = st.text_input("Full name")
@@ -459,7 +456,6 @@ def employee_view(user):
         st.stop()
 
     st.title("Employee Review")
-    st.caption("Submit workplace feedback. The system will save your review, VADER sentiment, and predicted leave risk.")
 
     with st.form("review_form"):
         employee_name = st.text_input("Employee name", value=user.get("name", ""))
@@ -530,7 +526,6 @@ def hr_view():
         st.stop()
 
     st.title("HR Dashboard")
-    st.caption("View employee sentiment and retention risk by department.")
 
     reviews = load_reviews()
     if reviews.empty:
@@ -662,7 +657,25 @@ def hr_view():
 
 
 def main():
-    st.set_page_config(page_title="Employee Retention Prediction", layout="wide")
+    st.set_page_config(
+        page_title="Employee Retention Prediction",
+        layout="wide",
+        initial_sidebar_state="collapsed",
+    )
+    st.markdown(
+        """
+        <style>
+        [data-testid="stSidebar"],
+        [data-testid="collapsedControl"] {
+            display: none;
+        }
+        [data-testid="stAppViewContainer"] > .main {
+            margin-left: 0;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
     ensure_storage()
 
     page = st.empty()

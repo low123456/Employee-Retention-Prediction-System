@@ -291,14 +291,7 @@ def append_review(row):
 def logout():
     st.session_state.authenticated = False
     st.session_state.pop("user", None)
-
-
-def handle_logout_request():
-    if st.query_params.get("logout") == "1" and not st.session_state.get("logout_handled"):
-        logout()
-        st.session_state.logout_handled = True
-        return True
-    return False
+    st.rerun()
 
 
 @st.cache_resource
@@ -676,12 +669,6 @@ def main():
     page = st.empty()
     sidebar = st.sidebar.empty()
 
-    if handle_logout_request():
-        sidebar.empty()
-        with page.container():
-            login_view()
-        st.stop()
-
     user = require_login()
     if user is None:
         st.session_state.authenticated = False
@@ -695,7 +682,7 @@ def main():
     with page.container():
         account_col, logout_col = st.columns([4, 1])
         account_col.caption(f"Signed in as {user['name']} ({user['role']})")
-        logout_col.link_button("Logout", "?logout=1", use_container_width=True)
+        logout_col.button("Logout", key="logout_button", use_container_width=True, on_click=logout)
 
         if user["role"] == "Employee":
             try:

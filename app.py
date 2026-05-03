@@ -291,7 +291,6 @@ def append_review(row):
 def logout():
     st.session_state.authenticated = False
     st.session_state.pop("user", None)
-    st.rerun()
 
 
 @st.cache_resource

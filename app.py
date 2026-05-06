@@ -494,7 +494,7 @@ def employee_view(user):
 
         st.success("Review submitted successfully.")
         col_1, col_2, col_3 = st.columns(3)
-        col_1.metric("VADER Sentiment", prediction["sentiment_label"])
+        col_1.metric("Sentiment", prediction["sentiment_label"])
         col_2.metric("Potential to Leave", f"{prediction['leave_probability'] * 100:.1f}%")
         col_3.metric("Risk Level", prediction["risk_level"])
 
@@ -507,11 +507,21 @@ def employee_view(user):
                 [
                     "timestamp",
                     "department",
+                    "review_text",
                     "sentiment_label",
                     "leave_probability",
                     "risk_level",
                 ]
-            ].sort_values("timestamp", ascending=False),
+            ]
+            .sort_values("timestamp", ascending=False)
+            .rename(
+                columns={
+                    "review_text": "comment",
+                    "sentiment_label": "sentiment",
+                    "leave_probability": "leave_probability",
+                    "risk_level": "risk_level",
+                }
+            ),
             use_container_width=True,
             hide_index=True,
         )
@@ -636,21 +646,27 @@ def hr_view():
         st.info("No high-risk employees found for the selected department.")
     else:
         high_risk_table = high_risk_table.copy()
-        high_risk_table["reason"] = high_risk_table.apply(high_risk_reason, axis=1)
         st.dataframe(
             high_risk_table[
                 [
                     "timestamp",
                     "employee_name",
                     "department",
+                    "review_text",
                     "sentiment_label",
                     "overall_rating",
                     "work_life_balance",
                     "leave_probability",
                     "risk_level",
-                    "reason",
                 ]
-            ],
+            ].rename(
+                columns={
+                    "review_text": "comment",
+                    "sentiment_label": "sentiment",
+                    "leave_probability": "leave_probability",
+                    "risk_level": "risk_level",
+                }
+            ),
             use_container_width=True,
             hide_index=True,
         )

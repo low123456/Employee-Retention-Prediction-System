@@ -397,8 +397,45 @@ def predict_review(review_text, overall_rating, work_life_balance):
     }
 
 
+def percent_label(value):
+    return f"{float(value) * 100:.1f}%"
+
+
+def render_page_header(title, subtitle=None, eyebrow=None):
+    eyebrow_html = f"<div class='eyebrow'>{eyebrow}</div>" if eyebrow else ""
+    subtitle_html = f"<p>{subtitle}</p>" if subtitle else ""
+    st.markdown(
+        f"""
+        <section class="page-hero">
+            {eyebrow_html}
+            <h1>{title}</h1>
+            {subtitle_html}
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_account_bar(user):
+    account_col, logout_col = st.columns([5, 1])
+    account_col.markdown(
+        f"""
+        <div class="account-strip">
+            <span class="account-name">{user['name']}</span>
+            <span>{user['role']} | {user.get('department', 'No department')}</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    logout_col.button("Logout", key="logout_button", use_container_width=True, on_click=logout)
+
+
 def login_view():
-    st.title("Employee Retention Prediction System")
+    render_page_header(
+        "Employee Retention Prediction System",
+        "A focused workspace for collecting employee feedback, measuring sentiment, and reviewing retention risk.",
+        "Workforce Intelligence",
+    )
 
     tab_login, tab_register = st.tabs(["Login", "Register"])
     with tab_login:
@@ -455,7 +492,11 @@ def employee_view(user):
     if require_login("Employee") is None:
         st.stop()
 
-    st.title("Employee Review")
+    render_page_header(
+        "Employee Review",
+        "Share workplace feedback so HR can identify retention risk and support teams earlier.",
+        "Feedback Submission",
+    )
 
     with st.form("review_form"):
         employee_name = st.text_input("Employee name", value=user.get("name", ""))
@@ -471,7 +512,7 @@ def employee_view(user):
         )
         col_a, col_b = st.columns(2)
         overall_rating = col_a.slider("Overall rating", 1, 5, 3)
-        work_life_balance = col_b.slider("Work life balance", 1, 5, 3)
+        work_life_balance = col_b.slider("Work-life balance", 1, 5, 3)
         submitted = st.form_submit_button("Submit Review", type="primary", use_container_width=True)
 
     if submitted:
@@ -495,14 +536,14 @@ def employee_view(user):
         st.success("Review submitted successfully.")
         col_1, col_2, col_3 = st.columns(3)
         col_1.metric("Sentiment", prediction["sentiment_label"])
-        col_2.metric("Potential to Leave", f"{prediction['leave_probability'] * 100:.1f}%")
+        col_2.metric("Potential to Leave", percent_label(prediction["leave_probability"]))
         col_3.metric("Risk Level", prediction["risk_level"])
 
     reviews = load_reviews()
     own_reviews = reviews[reviews["username"] == user["username"]] if not reviews.empty else reviews
     if not own_reviews.empty:
         st.subheader("My Previous Reviews")
-        st.dataframe(
+        own_reviews_table = (
             own_reviews[
                 [
                     "timestamp",
@@ -516,14 +557,31 @@ def employee_view(user):
             .sort_values("timestamp", ascending=False)
             .rename(
                 columns={
-                    "review_text": "comment",
-                    "sentiment_label": "sentiment",
-                    "leave_probability": "leave_probability",
-                    "risk_level": "risk_level",
+                    "timestamp": "Submitted",
+                    "department": "Department",
+                    "review_text": "Comment",
+                    "sentiment_label": "Sentiment",
+                    "leave_probability": "Leave Probability",
+                    "risk_level": "Risk Level",
                 }
-            ),
+            )
+        )
+        own_reviews_table["Leave Probability"] = pd.to_numeric(
+            own_reviews_table["Leave Probability"],
+            errors="coerce",
+        ).fillna(0) * 100
+        st.dataframe(
+            own_reviews_table,
             use_container_width=True,
             hide_index=True,
+            column_config={
+                "Leave Probability": st.column_config.ProgressColumn(
+                    "Leave Probability",
+                    format="%.1f%%",
+                    min_value=0,
+                    max_value=100,
+                )
+            },
         )
 
 
@@ -535,7 +593,11 @@ def hr_view():
     if require_login("HR") is None:
         st.stop()
 
-    st.title("HR Dashboard")
+    render_page_header(
+        "HR Dashboard",
+        "Monitor employee sentiment, department-level retention signals, and the people who need attention first.",
+        "Decision Dashboard",
+    )
 
     reviews = load_reviews()
     if reviews.empty:
@@ -556,7 +618,7 @@ def hr_view():
     high_risk = filtered[filtered["risk_level"] == "High"]
     col_a, col_b, col_c, col_d = st.columns(4)
     col_a.metric("Total Reviews", len(filtered))
-    col_b.metric("Average Leave Potential", f"{filtered['leave_probability'].mean() * 100:.1f}%")
+    col_b.metric("Average Leave Potential", percent_label(filtered["leave_probability"].mean()))
     col_c.metric("High Risk Employees", len(high_risk))
     col_d.metric("Negative Sentiment", int((filtered["sentiment_label"] == "Negative").sum()))
 
@@ -572,12 +634,14 @@ def hr_view():
                 "Sentiment:N",
                 scale=alt.Scale(
                     domain=["Positive", "Neutral", "Negative"],
-                    range=["#2ca25f", "#8c8c8c", "#de2d26"],
+                    range=["#2f9e44", "#64748b", "#d9480f"],
                 ),
+                legend=alt.Legend(orient="bottom", title=None),
             ),
             tooltip=["Sentiment", "Count"],
         )
-        .properties(title="Sentiment Analysis", height=340)
+        .properties(title="Sentiment Analysis", height=320)
+        .configure_title(anchor="start", color="#102a43", fontSize=16)
     )
     chart_a.altair_chart(sentiment_chart, use_container_width=True)
 
@@ -592,12 +656,14 @@ def hr_view():
                 "Risk Level:N",
                 scale=alt.Scale(
                     domain=["Low", "Medium", "High"],
-                    range=["#2ca25f", "#fdae6b", "#de2d26"],
+                    range=["#2f9e44", "#f59f00", "#d9480f"],
                 ),
+                legend=alt.Legend(orient="bottom", title=None),
             ),
             tooltip=["Risk Level", "Count"],
         )
-        .properties(title="Employee Retention Prediction", height=340)
+        .properties(title="Employee Retention Prediction", height=320)
+        .configure_title(anchor="start", color="#102a43", fontSize=16)
     )
     chart_b.altair_chart(risk_chart, use_container_width=True)
 
@@ -615,11 +681,15 @@ def hr_view():
     st.subheader("Department Leave Potential")
     bar_chart = (
         alt.Chart(dept_summary)
-        .mark_bar()
+        .mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4)
         .encode(
-            x=alt.X("department:N", sort="-y", title="Department"),
+            x=alt.X("department:N", sort="-y", title="Department", axis=alt.Axis(labelAngle=-25)),
             y=alt.Y("average_leave_percent:Q", title="Average Potential to Leave (%)"),
-            color=alt.Color("high_risk_count:Q", title="High Risk Count"),
+            color=alt.Color(
+                "high_risk_count:Q",
+                title="High Risk Count",
+                scale=alt.Scale(range=["#9ecae1", "#d9480f"]),
+            ),
             tooltip=[
                 alt.Tooltip("department:N", title="Department"),
                 alt.Tooltip("average_leave_percent:Q", title="Average Leave %", format=".1f"),
@@ -627,7 +697,8 @@ def hr_view():
                 alt.Tooltip("employees:Q", title="Reviews"),
             ],
         )
-        .properties(height=380)
+        .properties(height=360)
+        .configure_view(stroke=None)
     )
     st.altair_chart(bar_chart, use_container_width=True)
 
@@ -645,8 +716,7 @@ def hr_view():
     if high_risk_table.empty:
         st.info("No high-risk employees found for the selected department.")
     else:
-        high_risk_table = high_risk_table.copy()
-        st.dataframe(
+        high_risk_table = (
             high_risk_table[
                 [
                     "timestamp",
@@ -661,14 +731,34 @@ def hr_view():
                 ]
             ].rename(
                 columns={
-                    "review_text": "comment",
-                    "sentiment_label": "sentiment",
-                    "leave_probability": "leave_probability",
-                    "risk_level": "risk_level",
+                    "timestamp": "Submitted",
+                    "employee_name": "Employee",
+                    "department": "Department",
+                    "review_text": "Comment",
+                    "sentiment_label": "Sentiment",
+                    "overall_rating": "Overall Rating",
+                    "work_life_balance": "Work-Life Balance",
+                    "leave_probability": "Leave Probability",
+                    "risk_level": "Risk Level",
                 }
-            ),
+            )
+        )
+        high_risk_table["Leave Probability"] = pd.to_numeric(
+            high_risk_table["Leave Probability"],
+            errors="coerce",
+        ).fillna(0) * 100
+        st.dataframe(
+            high_risk_table,
             use_container_width=True,
             hide_index=True,
+            column_config={
+                "Leave Probability": st.column_config.ProgressColumn(
+                    "Leave Probability",
+                    format="%.1f%%",
+                    min_value=0,
+                    max_value=100,
+                )
+            },
         )
 
 
@@ -681,12 +771,174 @@ def main():
     st.markdown(
         """
         <style>
+        :root {
+            --primary: #0f6b6e;
+            --primary-dark: #0b4f52;
+            --surface: #ffffff;
+            --surface-soft: #f6f8fb;
+            --border: #d9e2ec;
+            --text: #102a43;
+            --muted: #627d98;
+            --accent: #f59f00;
+            --danger: #d9480f;
+        }
+
         [data-testid="stSidebar"],
         [data-testid="collapsedControl"] {
             display: none;
         }
+
         [data-testid="stAppViewContainer"] > .main {
             margin-left: 0;
+        }
+
+        .stApp {
+            background:
+                linear-gradient(180deg, rgba(15, 107, 110, 0.08), rgba(246, 248, 251, 0) 280px),
+                var(--surface-soft);
+            color: var(--text);
+        }
+
+        .block-container {
+            max-width: 1180px;
+            padding-top: 2rem;
+            padding-bottom: 3rem;
+        }
+
+        .page-hero {
+            padding: 1.4rem 0 1rem;
+            border-bottom: 1px solid rgba(16, 42, 67, 0.12);
+            margin-bottom: 1.3rem;
+        }
+
+        .page-hero h1 {
+            color: var(--text);
+            font-size: 3.25rem;
+            line-height: 1.05;
+            letter-spacing: 0;
+            margin: 0;
+        }
+
+        .page-hero p {
+            color: var(--muted);
+            font-size: 1.05rem;
+            max-width: 760px;
+            margin: 0.75rem 0 0;
+        }
+
+        .eyebrow {
+            color: var(--primary);
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0;
+            text-transform: uppercase;
+            margin-bottom: 0.5rem;
+        }
+
+        .account-strip {
+            align-items: center;
+            background: rgba(255, 255, 255, 0.86);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--muted);
+            display: flex;
+            gap: 0.7rem;
+            min-height: 44px;
+            padding: 0.55rem 0.8rem;
+        }
+
+        .account-name {
+            color: var(--text);
+            font-weight: 700;
+        }
+
+        div[data-testid="stTabs"] button {
+            color: var(--muted);
+            font-weight: 700;
+        }
+
+        div[data-testid="stTabs"] button[aria-selected="true"] {
+            color: var(--primary);
+        }
+
+        div[data-testid="stMetric"] {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            box-shadow: 0 10px 28px rgba(16, 42, 67, 0.07);
+            padding: 1rem 1.1rem;
+        }
+
+        div[data-testid="stMetricLabel"] p {
+            color: var(--muted);
+            font-weight: 700;
+        }
+
+        div[data-testid="stMetricValue"] {
+            color: var(--text);
+            font-size: 1.75rem;
+        }
+
+        .stButton button,
+        .stFormSubmitButton button {
+            border-radius: 8px;
+            font-weight: 700;
+            min-height: 2.75rem;
+        }
+
+        .stButton button[kind="primary"],
+        .stFormSubmitButton button[kind="primary"] {
+            background: var(--primary);
+            border-color: var(--primary);
+        }
+
+        .stButton button[kind="primary"]:hover,
+        .stFormSubmitButton button[kind="primary"]:hover {
+            background: var(--primary-dark);
+            border-color: var(--primary-dark);
+        }
+
+        .stTextInput input,
+        .stTextArea textarea,
+        .stSelectbox div[data-baseweb="select"] > div {
+            border-radius: 8px;
+        }
+
+        div[data-testid="stDataFrame"] {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        div[data-testid="stAlert"] {
+            border-radius: 8px;
+        }
+
+        h2, h3 {
+            color: var(--text);
+            letter-spacing: 0;
+        }
+
+        @media (max-width: 760px) {
+            .block-container {
+                padding-left: 1rem;
+                padding-right: 1rem;
+                padding-top: 1rem;
+            }
+
+            .page-hero {
+                padding-top: 0.8rem;
+            }
+
+            .page-hero h1 {
+                font-size: 2rem;
+            }
+
+            .account-strip {
+                align-items: flex-start;
+                flex-direction: column;
+                gap: 0.15rem;
+            }
         }
         </style>
         """,
@@ -708,9 +960,7 @@ def main():
     sidebar.empty()
 
     with page.container():
-        account_col, logout_col = st.columns([4, 1])
-        account_col.caption(f"Signed in as {user['name']} ({user['role']})")
-        logout_col.button("Logout", key="logout_button", use_container_width=True, on_click=logout)
+        render_account_bar(user)
 
         if user["role"] == "Employee":
             try:
